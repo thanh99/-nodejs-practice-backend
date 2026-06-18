@@ -16,12 +16,25 @@ connectDB();
 // Middleware: parse JSON body từ request
 app.use(express.json());
 
-// Cho phép cả localhost lẫn domain Vercel
+// Cho phép localhost, domain Vercel cụ thể, và tất cả preview URL của Vercel
 const allowedOrigins = [
   "http://localhost:3000",
-  process.env.FRONTEND_URL, // Set trên Railway sau khi deploy Vercel
-].filter(Boolean);
-app.use(cors({ origin: allowedOrigins, credentials: true }));
+  process.env.FRONTEND_URL,
+];
+app.use(
+  cors({
+    origin: (origin, callback) => {
+      // Cho phép request không có origin (mobile app, Postman, curl)
+      if (!origin) return callback(null, true);
+      // Cho phép nếu nằm trong danh sách hoặc là subdomain của vercel.app
+      if (allowedOrigins.includes(origin) || origin.endsWith(".vercel.app")) {
+        return callback(null, true);
+      }
+      callback(new Error("CORS not allowed"));
+    },
+    credentials: true,
+  })
+);
 
 // Serve file tĩnh từ thư mục uploads (để xem file sau khi upload)
 app.use("/uploads", express.static(path.join(__dirname, "../uploads")));
