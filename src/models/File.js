@@ -18,9 +18,13 @@ const fileSchema = new mongoose.Schema(
       type: Number,
       required: true, // bytes
     },
-    path: {
+    url: {
       type: String,
-      required: true, // Đường dẫn lưu trên server
+      required: true, // URL public trên Cloudinary
+    },
+    publicId: {
+      type: String,
+      required: true, // ID dùng để xóa file trên Cloudinary
     },
     owner: {
       type: mongoose.Schema.Types.ObjectId,

@@ -1,9 +1,15 @@
 const express = require("express");
 const jwt = require("jsonwebtoken");
-const fs = require("fs");
 const User = require("../models/User");
 const File = require("../models/File");
+const cloudinary = require("../config/cloudinary");
 const { adminProtect } = require("../middleware/adminAuth");
+
+const getResourceType = (mimetype) => {
+  if (mimetype.startsWith("image/")) return "image";
+  if (mimetype.startsWith("video/")) return "video";
+  return "raw";
+};
 
 const router = express.Router();
 
@@ -75,11 +81,13 @@ router.delete("/users/:id", adminProtect, async (req, res) => {
     if (!user) return res.status(404).json({ message: "User không tồn tại" });
 
     const files = await File.find({ owner: req.params.id });
-    files.forEach((file) => {
-      fs.unlink(file.path, (err) => {
-        if (err) console.error("Không thể xóa file vật lý:", err);
-      });
-    });
+    await Promise.all(
+      files.map((file) =>
+        cloudinary.uploader.destroy(file.publicId, {
+          resource_type: getResourceType(file.mimetype),
+        }).catch((err) => console.error("Không thể xóa file Cloudinary:", err))
+      )
+    );
 
     await File.deleteMany({ owner: req.params.id });
     await user.deleteOne();

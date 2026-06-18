@@ -1,7 +1,6 @@
 require("dotenv").config();
 const express = require("express");
 const cors = require("cors");
-const path = require("path");
 const connectDB = require("./config/db");
 
 const authRoutes = require("./routes/auth");
@@ -36,9 +35,6 @@ app.use(
     credentials: true,
   })
 );
-
-// Serve file tĩnh từ thư mục uploads (để xem file sau khi upload)
-app.use("/uploads", express.static(path.join(__dirname, "../uploads")));
 
 // Routes
 app.use("/api/auth", authRoutes);
