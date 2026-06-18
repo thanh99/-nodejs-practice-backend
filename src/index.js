@@ -7,6 +7,7 @@ const connectDB = require("./config/db");
 const authRoutes = require("./routes/auth");
 const fileRoutes = require("./routes/files");
 const statsRoutes = require("./routes/stats");
+const adminRoutes = require("./routes/admin");
 
 const app = express();
 
@@ -43,6 +44,7 @@ app.use("/uploads", express.static(path.join(__dirname, "../uploads")));
 app.use("/api/auth", authRoutes);
 app.use("/api/files", fileRoutes);
 app.use("/api/stats", statsRoutes);
+app.use("/api/admin", adminRoutes);
 
 // Health check
 app.get("/", (req, res) => res.json({ message: "Server đang chạy!" }));
