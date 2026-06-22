@@ -31,6 +31,10 @@ const userSchema = new mongoose.Schema(
       type: Number,
       default: 0, // bytes
     },
+    tokenVersion: {
+      type: Number,
+      default: 0,
+    },
   },
   {
     timestamps: true, // Tự động thêm createdAt và updatedAt
