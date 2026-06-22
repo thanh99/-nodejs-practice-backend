@@ -19,6 +19,14 @@ const protect = async (req, res, next) => {
       return res.status(401).json({ message: "User không tồn tại" });
     }
 
+    // [SINGLE-SESSION] Bỏ comment để bật kiểm tra thiết bị
+    // if (decoded.tokenVersion !== req.user.tokenVersion) {
+    //   return res.status(401).json({
+    //     message: "Tài khoản đã đăng nhập ở thiết bị khác",
+    //     code: "SESSION_INVALIDATED",
+    //   });
+    // }
+
     next();
   } catch (error) {
     res.status(401).json({ message: "Token không hợp lệ hoặc đã hết hạn" });

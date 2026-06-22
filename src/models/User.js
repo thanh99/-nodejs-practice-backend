@@ -31,6 +31,11 @@ const userSchema = new mongoose.Schema(
       type: Number,
       default: 0, // bytes
     },
+    // [SINGLE-SESSION] Bỏ comment để bật tính năng chỉ login 1 thiết bị
+    // tokenVersion: {
+    //   type: Number,
+    //   default: 0,
+    // },
   },
   {
     timestamps: true, // Tự động thêm createdAt và updatedAt

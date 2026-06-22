@@ -6,6 +6,8 @@ const { protect } = require("../middleware/auth");
 const router = express.Router();
 
 // Tạo JWT token
+// [SINGLE-SESSION] Thay dòng dưới bằng: const generateToken = (userId, tokenVersion) => {
+//   return jwt.sign({ id: userId, tokenVersion }, ...)
 const generateToken = (userId) => {
   return jwt.sign({ id: userId }, process.env.JWT_SECRET, {
     expiresIn: process.env.JWT_EXPIRES_IN,
@@ -53,6 +55,12 @@ router.post("/login", async (req, res) => {
       return res.status(401).json({ message: "Email hoặc password không đúng" });
     }
 
+    // [SINGLE-SESSION] Bỏ comment 4 dòng dưới và xóa 2 dòng generateToken + res.json bên dưới
+    // const updatedUser = await User.findByIdAndUpdate(
+    //   user._id, { $inc: { tokenVersion: 1 } }, { new: true }
+    // );
+    // const token = generateToken(updatedUser._id, updatedUser.tokenVersion);
+    // res.json({ token, user: { id: updatedUser._id, username: updatedUser.username, email: updatedUser.email, role: updatedUser.role } });
     const token = generateToken(user._id);
     res.json({
       token,
