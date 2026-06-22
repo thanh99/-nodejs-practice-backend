@@ -47,34 +47,44 @@ const uploadToCloudinary = (buffer, options) => {
   });
 };
 
-// POST /api/files/upload
-router.post("/upload", protect, upload.single("file"), async (req, res) => {
+// POST /api/files/upload — hỗ trợ upload nhiều file cùng lúc (tối đa 10)
+router.post("/upload", protect, upload.array("files", 10), async (req, res) => {
   try {
-    if (!req.file) {
-      return res.status(400).json({ message: "Vui lòng chọn file" });
+    if (!req.files || req.files.length === 0) {
+      return res.status(400).json({ message: "Vui lòng chọn ít nhất 1 file" });
     }
 
-    const result = await uploadToCloudinary(req.file.buffer, {
-      folder: "nodejs-app",
-      resource_type: getResourceType(req.file.mimetype),
-      public_id: `${Date.now()}-${req.file.originalname.replace(/\s+/g, "_")}`,
-    });
+    const uploadResults = await Promise.all(
+      req.files.map((file, i) =>
+        uploadToCloudinary(file.buffer, {
+          folder: "nodejs-app",
+          resource_type: getResourceType(file.mimetype),
+          public_id: `${Date.now()}-${i}-${file.originalname.replace(/\s+/g, "_")}`,
+        })
+      )
+    );
 
-    const file = await File.create({
-      originalName: req.file.originalname,
-      filename: result.public_id,
-      mimetype: req.file.mimetype,
-      size: req.file.size,
-      url: result.secure_url,
-      publicId: result.public_id,
-      owner: req.user._id,
-    });
+    const fileDocs = await Promise.all(
+      req.files.map((file, i) =>
+        File.create({
+          originalName: file.originalname,
+          filename: uploadResults[i].public_id,
+          mimetype: file.mimetype,
+          size: file.size,
+          url: uploadResults[i].secure_url,
+          publicId: uploadResults[i].public_id,
+          owner: req.user._id,
+        })
+      )
+    );
 
-    await User.findByIdAndUpdate(req.user._id, {
-      $inc: { storageUsed: req.file.size },
-    });
+    const totalSize = req.files.reduce((sum, f) => sum + f.size, 0);
+    await User.findByIdAndUpdate(req.user._id, { $inc: { storageUsed: totalSize } });
 
-    res.status(201).json({ message: "Upload thành công", file });
+    res.status(201).json({
+      message: `Upload thành công ${fileDocs.length} file`,
+      files: fileDocs,
+    });
   } catch (error) {
     res.status(500).json({ message: error.message });
   }
