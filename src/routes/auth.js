@@ -5,9 +5,9 @@ const { protect } = require("../middleware/auth");
 
 const router = express.Router();
 
-// Tạo JWT token — tokenVersion dùng để invalidate session cũ khi đăng nhập thiết bị mới
-const generateToken = (userId, tokenVersion) => {
-  return jwt.sign({ id: userId, tokenVersion }, process.env.JWT_SECRET, {
+// Tạo JWT token
+const generateToken = (userId) => {
+  return jwt.sign({ id: userId }, process.env.JWT_SECRET, {
     expiresIn: process.env.JWT_EXPIRES_IN,
   });
 };
@@ -25,7 +25,7 @@ router.post("/register", async (req, res) => {
 
     // Tạo user mới (password sẽ tự hash qua pre-save hook trong model)
     const user = await User.create({ username, email, password });
-    const token = generateToken(user._id, user.tokenVersion);
+    const token = generateToken(user._id);
 
     res.status(201).json({
       token,
@@ -53,17 +53,10 @@ router.post("/login", async (req, res) => {
       return res.status(401).json({ message: "Email hoặc password không đúng" });
     }
 
-    // Tăng tokenVersion để invalidate tất cả session cũ trên thiết bị khác
-    const updatedUser = await User.findByIdAndUpdate(
-      user._id,
-      { $inc: { tokenVersion: 1 } },
-      { new: true }
-    );
-
-    const token = generateToken(updatedUser._id, updatedUser.tokenVersion);
+    const token = generateToken(user._id);
     res.json({
       token,
-      user: { id: updatedUser._id, username: updatedUser.username, email: updatedUser.email, role: updatedUser.role },
+      user: { id: user._id, username: user.username, email: user.email, role: user.role },
     });
   } catch (error) {
     res.status(500).json({ message: error.message });
