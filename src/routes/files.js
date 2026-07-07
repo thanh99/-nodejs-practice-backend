@@ -3,6 +3,7 @@ const multer = require("multer");
 const jwt = require("jsonwebtoken");
 const File = require("../models/File");
 const User = require("../models/User");
+const Share = require("../models/Share");
 const cloudinary = require("../config/cloudinary");
 const { protect } = require("../middleware/auth");
 
@@ -133,7 +134,8 @@ router.get("/:id/download", async (req, res) => {
 
     const isOwner = file.owner.toString() === currentUser._id.toString();
     const isAdmin = currentUser.role === "admin";
-    if (!isOwner && !isAdmin) return res.status(403).json({ message: "Không có quyền" });
+    const isShared = await Share.exists({ file: file._id, sharedTo: currentUser._id });
+    if (!isOwner && !isAdmin && !isShared) return res.status(403).json({ message: "Không có quyền" });
 
     if (!file.url) return res.status(404).json({ message: "File không có URL" });
 
@@ -176,6 +178,7 @@ router.delete("/:id", protect, async (req, res) => {
       $inc: { storageUsed: -file.size },
     });
 
+    await Share.deleteMany({ file: file._id });
     await file.deleteOne();
 
     res.json({ message: "Xóa file thành công" });
