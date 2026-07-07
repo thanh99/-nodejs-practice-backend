@@ -76,4 +76,38 @@ router.get("/me", protect, (req, res) => {
   res.json({ user: req.user });
 });
 
+// PUT /api/auth/profile — đổi username và/hoặc mật khẩu
+router.put("/profile", protect, async (req, res) => {
+  try {
+    const { username, currentPassword, newPassword } = req.body;
+    const user = await User.findById(req.user._id).select("+password");
+
+    if (username && username !== user.username) {
+      const existing = await User.findOne({ username });
+      if (existing) return res.status(400).json({ message: "Username đã được sử dụng" });
+      user.username = username;
+    }
+
+    if (newPassword) {
+      if (!currentPassword) {
+        return res.status(400).json({ message: "Vui lòng nhập mật khẩu hiện tại" });
+      }
+      const isMatch = await user.comparePassword(currentPassword);
+      if (!isMatch) return res.status(400).json({ message: "Mật khẩu hiện tại không đúng" });
+      if (newPassword.length < 6) {
+        return res.status(400).json({ message: "Mật khẩu mới tối thiểu 6 ký tự" });
+      }
+      user.password = newPassword; // pre-save hook tự hash
+    }
+
+    await user.save();
+    res.json({
+      message: "Cập nhật thành công",
+      user: { id: user._id, username: user.username, email: user.email, role: user.role },
+    });
+  } catch (error) {
+    res.status(400).json({ message: error.message });
+  }
+});
+
 module.exports = router;

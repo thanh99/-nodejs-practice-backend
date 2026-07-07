@@ -4,6 +4,7 @@ const jwt = require("jsonwebtoken");
 const File = require("../models/File");
 const User = require("../models/User");
 const Share = require("../models/Share");
+const Favorite = require("../models/Favorite");
 const cloudinary = require("../config/cloudinary");
 const { protect } = require("../middleware/auth");
 
@@ -91,28 +92,45 @@ router.post("/upload", protect, upload.array("files", 10), async (req, res) => {
   }
 });
 
-// GET /api/files
+// GET /api/files — có hỗ trợ phân trang ?page=1&limit=20
 router.get("/", protect, async (req, res) => {
   try {
-    const files = await File.find({ owner: req.user._id })
+    const page  = Math.max(1, parseInt(req.query.page)  || 1);
+    const limit = Math.min(50, Math.max(1, parseInt(req.query.limit) || 20));
+    const skip  = (page - 1) * limit;
+
+    const query = { owner: req.user._id };
+    const total = await File.countDocuments(query);
+    const files = await File.find(query)
       .populate("owner", "username email")
-      .sort({ createdAt: -1 });
-    res.json({ files });
+      .sort({ createdAt: -1 })
+      .skip(skip)
+      .limit(limit);
+
+    res.json({ files, total, page, hasMore: skip + files.length < total });
   } catch (error) {
     res.status(500).json({ message: error.message });
   }
 });
 
-// GET /api/files/all — Admin
+// GET /api/files/all — Admin, cũng hỗ trợ phân trang
 router.get("/all", protect, async (req, res) => {
   try {
     if (req.user.role !== "admin") {
       return res.status(403).json({ message: "Chỉ Admin mới có quyền này" });
     }
+    const page  = Math.max(1, parseInt(req.query.page)  || 1);
+    const limit = Math.min(50, Math.max(1, parseInt(req.query.limit) || 20));
+    const skip  = (page - 1) * limit;
+
+    const total = await File.countDocuments();
     const files = await File.find()
       .populate("owner", "username email")
-      .sort({ createdAt: -1 });
-    res.json({ files });
+      .sort({ createdAt: -1 })
+      .skip(skip)
+      .limit(limit);
+
+    res.json({ files, total, page, hasMore: skip + files.length < total });
   } catch (error) {
     res.status(500).json({ message: error.message });
   }
@@ -179,6 +197,7 @@ router.delete("/:id", protect, async (req, res) => {
     });
 
     await Share.deleteMany({ file: file._id });
+    await Favorite.deleteMany({ file: file._id });
     await file.deleteOne();
 
     res.json({ message: "Xóa file thành công" });

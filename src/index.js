@@ -8,6 +8,7 @@ const fileRoutes = require("./routes/files");
 const statsRoutes = require("./routes/stats");
 const adminRoutes = require("./routes/admin");
 const sharesRoutes = require("./routes/shares");
+const favoritesRoutes = require("./routes/favorites");
 
 const app = express();
 
@@ -43,6 +44,7 @@ app.use("/api/files", fileRoutes);
 app.use("/api/stats", statsRoutes);
 app.use("/api/admin", adminRoutes);
 app.use("/api/shares", sharesRoutes);
+app.use("/api/favorites", favoritesRoutes);
 
 // Health check
 app.get("/", (req, res) => res.json({ message: "Server đang chạy!" }));

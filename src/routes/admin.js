@@ -3,6 +3,7 @@ const jwt = require("jsonwebtoken");
 const User = require("../models/User");
 const File = require("../models/File");
 const Share = require("../models/Share");
+const Favorite = require("../models/Favorite");
 const cloudinary = require("../config/cloudinary");
 const { adminProtect } = require("../middleware/adminAuth");
 
@@ -92,6 +93,7 @@ router.delete("/users/:id", adminProtect, async (req, res) => {
 
     await File.deleteMany({ owner: req.params.id });
     await Share.deleteMany({ $or: [{ sharedBy: req.params.id }, { sharedTo: req.params.id }] });
+    await Favorite.deleteMany({ user: req.params.id });
     await user.deleteOne();
 
     res.json({ message: "Xóa user thành công" });
