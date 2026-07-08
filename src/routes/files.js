@@ -92,14 +92,33 @@ router.post("/upload", protect, upload.array("files", 10), async (req, res) => {
   }
 });
 
-// GET /api/files — có hỗ trợ phân trang ?page=1&limit=20
+// GET /api/files — phân trang + tìm kiếm + lọc theo loại/ngày
+// ?page=1&limit=20&search=name&type=image|video|pdf|other&dateFrom=2024-01-01&dateTo=2024-12-31
 router.get("/", protect, async (req, res) => {
   try {
     const page  = Math.max(1, parseInt(req.query.page)  || 1);
     const limit = Math.min(50, Math.max(1, parseInt(req.query.limit) || 20));
     const skip  = (page - 1) * limit;
+    const { search, type, dateFrom, dateTo } = req.query;
 
     const query = { owner: req.user._id };
+
+    // Tìm theo tên file (regex không phân biệt hoa thường)
+    if (search) query.originalName = { $regex: search, $options: "i" };
+
+    // Lọc theo loại file
+    if (type === "image") query.mimetype = /^image\//;
+    else if (type === "video") query.mimetype = /^video\//;
+    else if (type === "pdf")   query.mimetype = "application/pdf";
+    else if (type === "other") query.mimetype = { $not: /^(image|video)\//, $ne: "application/pdf" };
+
+    // Lọc theo khoảng ngày
+    if (dateFrom || dateTo) {
+      query.createdAt = {};
+      if (dateFrom) query.createdAt.$gte = new Date(dateFrom);
+      if (dateTo)   query.createdAt.$lte = new Date(dateTo + "T23:59:59.999Z");
+    }
+
     const total = await File.countDocuments(query);
     const files = await File.find(query)
       .populate("owner", "username email")
@@ -131,6 +150,48 @@ router.get("/all", protect, async (req, res) => {
       .limit(limit);
 
     res.json({ files, total, page, hasMore: skip + files.length < total });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+});
+
+// DELETE /api/files/bulk — xóa nhiều file cùng lúc (chỉ file của chính mình)
+router.delete("/bulk", protect, async (req, res) => {
+  try {
+    const { ids } = req.body; // mảng string IDs
+    if (!Array.isArray(ids) || ids.length === 0) {
+      return res.status(400).json({ message: "Vui lòng chọn ít nhất 1 file" });
+    }
+
+    // Lấy tất cả file, chỉ giữ lại file thuộc về user này (bảo vệ ownership)
+    const filesToDelete = await File.find({
+      _id: { $in: ids },
+      owner: req.user._id,
+    });
+
+    if (filesToDelete.length === 0) {
+      return res.status(403).json({ message: "Không có file nào thuộc về bạn" });
+    }
+
+    // Xóa khỏi Cloudinary (song song)
+    await Promise.allSettled(
+      filesToDelete.map((f) =>
+        cloudinary.uploader.destroy(f.publicId, {
+          resource_type: f.mimetype.startsWith("video/") ? "video"
+            : f.mimetype.startsWith("image/") ? "image" : "raw",
+        })
+      )
+    );
+
+    // Xóa khỏi MongoDB
+    const deletedIds = filesToDelete.map((f) => f._id);
+    await File.deleteMany({ _id: { $in: deletedIds } });
+
+    // Trừ storageUsed
+    const totalSize = filesToDelete.reduce((sum, f) => sum + f.size, 0);
+    await User.findByIdAndUpdate(req.user._id, { $inc: { storageUsed: -totalSize } });
+
+    res.json({ message: `Đã xóa ${filesToDelete.length} file`, deletedCount: filesToDelete.length });
   } catch (error) {
     res.status(500).json({ message: error.message });
   }
