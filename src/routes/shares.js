@@ -2,6 +2,8 @@ const express = require("express");
 const Share = require("../models/Share");
 const File = require("../models/File");
 const User = require("../models/User");
+const Notification = require("../models/Notification");
+const { emitToUser } = require("../socket");
 const { protect } = require("../middleware/auth");
 
 const router = express.Router();
@@ -57,6 +59,20 @@ router.post("/", protect, async (req, res) => {
     }
 
     await Share.create({ file: fileId, sharedBy: req.user._id, sharedTo: targetUser._id });
+
+    // Tạo thông báo và emit real-time cho người nhận
+    const notif = await Notification.create({
+      recipient: targetUser._id,
+      type: "file_shared",
+      message: `${req.user.username} đã chia sẻ file "${file.originalName}" với bạn`,
+      file: file._id,
+      fromUser: req.user._id,
+    });
+    const populated = await Notification.findById(notif._id)
+      .populate("fromUser", "username")
+      .populate("file", "originalName");
+    emitToUser(targetUser._id, "notification:new", populated);
+
     res.status(201).json({ message: `Đã chia sẻ với ${targetUser.username}` });
   } catch (error) {
     if (error.code === 11000) {
@@ -69,12 +85,29 @@ router.post("/", protect, async (req, res) => {
 // DELETE /api/shares/:shareId — thu hồi chia sẻ
 router.delete("/:shareId", protect, async (req, res) => {
   try {
-    const share = await Share.findById(req.params.shareId);
+    const share = await Share.findById(req.params.shareId)
+      .populate("file", "originalName _id")
+      .populate("sharedTo", "_id");
     if (!share) return res.status(404).json({ message: "Không tìm thấy bản ghi chia sẻ" });
     if (share.sharedBy.toString() !== req.user._id.toString()) {
       return res.status(403).json({ message: "Không có quyền thu hồi chia sẻ này" });
     }
+
+    const recipientId = share.sharedTo._id;
+    const fileName = share.file?.originalName || "file";
     await share.deleteOne();
+
+    // Thông báo thu hồi cho người đã nhận
+    const notif = await Notification.create({
+      recipient: recipientId,
+      type: "share_revoked",
+      message: `${req.user.username} đã thu hồi chia sẻ file "${fileName}"`,
+      fromUser: req.user._id,
+    });
+    const populated = await Notification.findById(notif._id)
+      .populate("fromUser", "username");
+    emitToUser(recipientId, "notification:new", populated);
+
     res.json({ message: "Đã thu hồi chia sẻ" });
   } catch (error) {
     res.status(500).json({ message: error.message });
